@@ -68,7 +68,7 @@ ThreadPool::~ThreadPool() {
   condition_.notify_all();
 
   // Step 3: Wait for each worker to finish
-  for (auto &worker : worker) {
+  for (auto &worker : workers_) {
     // joinable() checks if the thread is still running
     if (worker.joinable()) {
       worker.join();

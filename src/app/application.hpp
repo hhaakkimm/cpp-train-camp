@@ -35,6 +35,7 @@
 #include "core/expiry_manager.hpp"
 #include "core/key_value_store.hpp"
 #include "http/router.hpp"
+#include "network/socket.hpp"
 
 #include <atomic>
 #include <memory> // std::unique_ptr — exclusive-ownership smart pointer

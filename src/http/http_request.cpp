@@ -7,21 +7,20 @@
 #include <algorithm> // std::transform — apply a function to each element
 #include <sstream>   // std::istringstream — parse strings like a file
 
-namespace mini_redis {
-
 // =============================================================================
-// Helper: convert a string to lowercase (for case-insensitive header matching)
+// Anonymous namespace for internal helper functions
 // =============================================================================
-// This is a FREE FUNCTION (not inside any class). It's in an ANONYMOUS
-// NAMESPACE, which means it's only visible in THIS .cpp file.
+// namespace { ... } creates INTERNAL LINKAGE — the function can only be
+// used in THIS .cpp file.
 //
 // WHAT IS AN ANONYMOUS NAMESPACE?
-// namespace { ... } creates INTERNAL LINKAGE — the function can only be
-// used in this file. It's the modern C++ replacement for "static" functions.
+// It's the modern C++ replacement for "static" functions at file scope.
 // This prevents name collisions if another .cpp also has a "to_lower" function.
+// Everything inside is invisible outside this compilation unit (.cpp file).
 // =============================================================================
 namespace {
 
+// Convert a string to lowercase (for case-insensitive header matching)
 std::string to_lower(std::string str) {
   // std::transform applies a function to each character in the string.
   // str.begin() to str.end() = input range
@@ -32,6 +31,8 @@ std::string to_lower(std::string str) {
 }
 
 } // anonymous namespace
+
+namespace mini_redis {
 
 // =============================================================================
 // parse() — Parse raw HTTP text into an HttpRequest object
@@ -50,7 +51,10 @@ std::optional<HttpRequest> HttpRequest::parse(const std::string &raw_request) {
     return std::nullopt;
   }
 
-  // Create the request object we'll fill in
+  // Create the request object we'll fill in.
+  // We can call the private default constructor because parse() is a
+  // static MEMBER function of HttpRequest — member functions can access
+  // private members of their own class.
   HttpRequest request;
 
   // Use istringstream to parse the raw text line by line.
@@ -60,102 +64,9 @@ std::optional<HttpRequest> HttpRequest::parse(const std::string &raw_request) {
   std::string line;
 
   // ---- Step 1: Parse the request line ----
-  if (!std::getline(stream, line)) {
-    return std::nullopt; // No request line = invalid
-  }
-
-  // Parse the request line using another istringstream
-  if (!parse_request_line(request, line)) {
-    return std::nullopt;
-  }
-
-  // ---- Step 2: Parse headers ----
-  parse_headers(request, stream);
-
-  // ---- Step 3: Extract body ----
-  parse_body(request, raw_request);
-
-  return request;
-}
-
-// =============================================================================
-// (internal) Parse the first line: "GET /path HTTP/1.1\r\n"
-// =============================================================================
-// We use a helper that's declared as part of the split parsing approach.
-// Since we want to keep functions small (≤25 lines), we break parsing into
-// three helper functions. These are free functions visible only in this file.
-// =============================================================================
-
-// Forward declarations of helper functions (defined below)
-// We can't use anonymous namespace here because parse() needs to call them
-// and they're private implementation details.
-
-namespace {
-
-bool parse_request_line_impl(HttpRequest &request, const std::string &line) {
-  std::istringstream line_stream(line);
-  std::string method_str;
-  std::string path;
-  std::string version;
-
-  // >> operator reads whitespace-separated tokens
-  // "GET /kv/hello HTTP/1.1" → method_str="GET", path="/kv/hello",
-  // version="HTTP/1.1"
-  if (!(line_stream >> method_str >> path >> version)) {
-    return false; // Couldn't parse all 3 parts
-  }
-
-  // We need a way to set private members from this free function.
-  // Since HttpRequest::parse is a static member, it can access private
-  // members. But we're in a free function here. The solution is to have
-  // parse() do the actual assignment. Let's restructure...
-  // Actually, let's make these be called from within parse() which has access.
-  return true;
-}
-
-} // anonymous namespace
-
-// =============================================================================
-// Let's restructure parse() to be cleaner — all in one function but
-// with clear sections. This is more maintainable for our size.
-// =============================================================================
-
-// We need to re-define parse properly with inline helper logic:
-// (The first definition above was the "ideal" but let me do it cleanly)
-
-// Actually, since HttpRequest has private members that only member
-// functions can access, let's Just define proper private static helpers.
-// But we already declared the class... Let's do it all in parse():
-
-// OVERWRITING the parse function with the correct complete implementation:
-
-// We already have the right declaration above. Let me provide the full
-// working implementation by redefining at the end of this file.
-
-} // namespace mini_redis
-
-// =============================================================================
-// CLEAN RE-IMPLEMENTATION
-// =============================================================================
-// The above was a learning exercise in how code evolves. Here's the final,
-// clean version. In real development, you'd iterate and refactor too!
-// =============================================================================
-
-namespace mini_redis {
-
-std::optional<HttpRequest> HttpRequest::parse(const std::string &raw_request) {
-  if (raw_request.empty()) {
-    return std::nullopt;
-  }
-
-  HttpRequest request;
-  std::istringstream stream(raw_request);
-  std::string line;
-
-  // ---- Step 1: Parse request line ----
   // getline reads until \n. HTTP uses \r\n, so we get \r at the end.
   if (!std::getline(stream, line)) {
-    return std::nullopt;
+    return std::nullopt; // No request line = invalid
   }
 
   // Remove trailing \r if present (HTTP line endings are \r\n)
@@ -163,20 +74,25 @@ std::optional<HttpRequest> HttpRequest::parse(const std::string &raw_request) {
     line.pop_back();
   }
 
-  // Parse "GET /path HTTP/1.1" into three parts
+  // Parse "GET /path HTTP/1.1" into three parts using istringstream
+  // The >> operator reads whitespace-separated tokens:
+  //   "GET /kv/hello HTTP/1.1" → method="GET", path="/kv/hello",
+  //   version="HTTP/1.1"
   std::istringstream request_line(line);
   std::string method_str;
   std::string path;
   std::string version;
 
   if (!(request_line >> method_str >> path >> version)) {
-    return std::nullopt;
+    return std::nullopt; // Couldn't parse all 3 parts
   }
 
   request.method_ = string_to_method(method_str);
   request.path_ = path;
 
   // ---- Step 2: Parse headers ----
+  // Each header is one line: "Header-Name: value\r\n"
+  // An empty line signals the end of headers.
   while (std::getline(stream, line)) {
     // Remove trailing \r
     if (!line.empty() && line.back() == '\r') {
@@ -190,26 +106,33 @@ std::optional<HttpRequest> HttpRequest::parse(const std::string &raw_request) {
 
     // Find the colon separator in "Header-Name: value"
     const auto colon_pos = line.find(':');
+
+    // std::string::npos is a special constant meaning "not found"
     if (colon_pos == std::string::npos) {
-      continue; // Malformed header, skip it
+      continue; // Malformed header line, skip it
     }
 
-    // Extract header name (before colon) and value (after colon + space)
+    // Extract header name (before colon) — converted to lowercase
+    // substr(start, length) extracts a substring
     std::string header_name = to_lower(line.substr(0, colon_pos));
 
-    // Skip the colon and any leading whitespace in the value
+    // Extract header value (after colon), skipping leading whitespace
     std::size_t value_start = colon_pos + 1;
     while (value_start < line.size() && line[value_start] == ' ') {
       ++value_start;
     }
     std::string header_value = line.substr(value_start);
 
+    // Store in the map (name is lowercase for case-insensitive lookup)
     request.headers_[header_name] = header_value;
   }
 
   // ---- Step 3: Extract body (everything remaining in the stream) ----
-  // std::istreambuf_iterator reads raw characters from the stream
-  // This idiom reads ALL remaining content into a string
+  // std::istreambuf_iterator reads raw characters from the stream buffer.
+  // Constructing a string from two iterators reads ALL remaining content.
+  // The extra parentheses around the first iterator avoid the "most vexing
+  // parse" — a C++ gotcha where the compiler thinks you're declaring a
+  // function.
   std::string remaining((std::istreambuf_iterator<char>(stream)),
                         std::istreambuf_iterator<char>());
   request.body_ = remaining;
@@ -219,6 +142,9 @@ std::optional<HttpRequest> HttpRequest::parse(const std::string &raw_request) {
 
 // =============================================================================
 // Getter implementations — simple one-liners
+// =============================================================================
+// These just return the private member variables.
+// "const" at the end guarantees we don't modify the object.
 // =============================================================================
 HttpMethod HttpRequest::method() const { return method_; }
 
@@ -237,18 +163,19 @@ HttpRequest::headers() const {
 std::optional<std::string>
 HttpRequest::get_header(const std::string &name) const {
   // Convert the requested name to lowercase for case-insensitive matching
-  // (we already stored all header names in lowercase during parsing)
+  // (all header names were stored in lowercase during parsing)
   const auto it = headers_.find(to_lower(name));
 
   if (it == headers_.end()) {
     return std::nullopt;
   }
 
+  // it->second is the VALUE in the key-value pair (it->first is the key)
   return it->second;
 }
 
 // =============================================================================
-// string_to_method() — Convert "GET" string to HttpMethod::GET enum
+// string_to_method() — Convert HTTP method string to enum
 // =============================================================================
 HttpMethod HttpRequest::string_to_method(const std::string &method_str) {
   if (method_str == "GET")

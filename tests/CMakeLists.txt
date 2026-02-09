@@ -21,6 +21,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest)
 
+# --- Find threading library ---
+# Tests also need the threading library for concurrent tests
+find_package(Threads REQUIRED)
+
 # --- Enable CTest (CMake's test runner) ---
 # This lets us run all tests with "ctest" command
 enable_testing()

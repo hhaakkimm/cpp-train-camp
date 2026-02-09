@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/robot/Desktop/hkms/cpp-train-camp/build/cmake_install.cmake",
+		"/Users/robot/Desktop/hkms/cpp-train-camp/build/src/cmake_install.cmake",
+		"/Users/robot/Desktop/hkms/cpp-train-camp/build/tests/cmake_install.cmake",
+		"/Users/robot/Desktop/hkms/cpp-train-camp/build/_deps/googletest-build/cmake_install.cmake",
+		"/Users/robot/Desktop/hkms/cpp-train-camp/build/_deps/googletest-build/googlemock/cmake_install.cmake",
+		"/Users/robot/Desktop/hkms/cpp-train-camp/build/_deps/googletest-build/googletest/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
